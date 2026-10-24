@@ -1,0 +1,57 @@
+{
+  "name": "dsh-readme",
+  "version": "0.1.0",
+  "description": "Read a user-designated text file before every agent's first step and inject its contents into the system prompt as binding working constraints.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LXinH3RT/dsh-readme.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LXinH3RT/dsh-readme/issues"
+  },
+  "homepage": "https://github.com/LXinH3RT/dsh-readme#readme",
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "dsh": ">=0.1.7-rc.2"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "constraints",
+    "readme",
+    "agents-md"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

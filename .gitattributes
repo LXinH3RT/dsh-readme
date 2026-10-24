@@ -1,0 +1,14 @@
+# Normalise line endings in the repository, not in the working tree.
+#
+# This is a Node package that may be checked out on any platform, and the Windows
+# default here is `core.autocrlf=true`: without this file the committed blobs
+# would carry CRLF, and a checkout on Linux would then see CRLF in a JS source
+# file and a lockfile it has to rewrite. `text=auto` keeps LF in the repository
+# and still lets a Windows working tree hold CRLF if it wants to.
+* text=auto eol=lf
+
+# Anything whose bytes matter must never be line-ending-converted.
+*.png binary
+*.jpg binary
+*.zip binary
+*.tgz binary

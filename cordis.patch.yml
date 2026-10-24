@@ -1,0 +1,23 @@
+# This bundle layer inserts the dsh-readme plugin process-wide, so every agent
+# (and every subagent) receives the configured constraint file in its system
+# prompt before its first model request.
+#
+# Do NOT also add a `dsh-readme` row to a preset: system-prompt sections are
+# registered per plugin instance, and a second instance would inject the same
+# text twice under a colliding section name. To take the section out of a
+# composition, override this row by id in a later patch layer (`- id: dsh-readme`
+# with `disabled: true`) instead of duplicating it.
+#
+# The entry `name:` is PATH-RELATIVE on purpose. DSH anchors a relative `name:`
+# to the directory of the patch file that declared it
+# (`anchorInsertedPluginNames`), so this row always loads this bundle's own
+# `index.js` — whatever the package folder happens to be called. A bare package
+# name would instead have to match the installed folder name. Keep it relative.
+#
+# The constraint path itself is NOT set here: this layer is the plugin's own
+# defaults, and the profile patch (`- id: dsh-readme` / `config:`) is where a
+# user points it at their file.
+
+- insert:
+    - id: dsh-readme
+      name: './index.js'
