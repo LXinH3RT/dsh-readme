@@ -8,3 +8,6 @@ pnpm-debug.log*
 yarn-error.log*
 .DS_Store
 Thumbs.db
+
+# Local probe scripts and scratch output
+.probe/

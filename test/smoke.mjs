@@ -36,6 +36,18 @@ function test(label, body) {
   }
 }
 
+/** The same harness for a body that has to await the Host's answer. */
+async function testAsync(label, body) {
+  try {
+    await body()
+    console.log(`  ok   ${label}`)
+  } catch (error) {
+    failed += 1
+    console.log(`  FAIL ${label}`)
+    console.log(`       ${error?.message ?? error}`)
+  }
+}
+
 function snapshot(text, name = 'constraints.md') {
   const path = join(root, name)
   writeFileSync(path, text, 'utf8')
@@ -421,7 +433,295 @@ test('package.json declares the bundle patch and a loadable entry', () => {
   assert.equal(manifest.type, 'module')
   assert.equal(manifest.main, 'index.js')
   assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')
-  assert.ok(!manifest.dsh.client, 'this plugin has no browser half')
+})
+
+test('package.json declares the browser half the settings page needs', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  // Without `dsh.client` the Host never loads `./client`, and the settings page
+  // is absent no matter how many volatile fields the schema has: the shipped
+  // Web client does not build pages from a schema, so a plugin that wants one
+  // has to ship it.
+  assert.equal(manifest.dsh.client?.platform, 'web', 'the browser half must target the web client')
+  assert.ok(Array.isArray(manifest.dsh.client?.inject), 'the browser half declares the client services it needs')
+  assert.equal(manifest.exports['./client'], './lib/client.js')
+  assert.ok(manifest.files.includes('lib'), 'lib/ ships, so lib/client.js is in the tarball')
+})
+
+// --- browser half ------------------------------------------------------------
+
+/**
+ * Load `lib/client.js` the way the page does.
+ *
+ * The bundle is not an ES module: it calls `window.__ModuleLoader__.load` with a
+ * factory and expects `require` to hand it React. So the test is the loader:
+ * a stub `window`, a stub React, then the factory's exports.
+ */
+function loadClientHalf() {
+  const file = new URL('../lib/client.js', import.meta.url)
+  const source = readFileSync(file, 'utf8')
+  let captured
+  const previous = globalThis.window
+  globalThis.window = {
+    __ModuleLoader__: {
+      load: entry => {
+        captured = entry
+      },
+    },
+  }
+  try {
+    new Function(source)()
+  } finally {
+    if (previous === undefined) delete globalThis.window
+    else globalThis.window = previous
+  }
+  assert.ok(captured !== undefined, 'lib/client.js did not call the module loader')
+  assert.equal(captured.id, 'dsh-readme', 'the bundle id names this plugin')
+  const fakeReact = {
+    createElement: (type, props, ...children) => ({ type, props: { ...props, ...(children.length === 0 ? {} : { children: children.length === 1 ? children[0] : children }) } }),
+    // A single-slot store instead of React's: `useState` keeps its value across
+    // renders (so a setter really changes what the next render reads), and
+    // `render` below re-runs the component the way a re-render would.
+    useState: initial => {
+      const index = hooks.cursor
+      hooks.cursor += 1
+      if (hooks.values.length <= index) hooks.values.push(typeof initial === 'function' ? initial() : initial)
+      const set = next => {
+        hooks.values[index] = typeof next === 'function' ? next(hooks.values[index]) : next
+      }
+      return [hooks.values[index], set]
+    },
+    useEffect: () => {},
+  }
+  const hooks = { cursor: 0, values: [] }
+  const client = captured.factory(specifier => {
+    assert.equal(specifier, 'react', `the browser half may only require React (asked for ${specifier})`)
+    return fakeReact
+  })
+  // Re-render with the state left by the previous render, which is what makes a
+  // typed draft visible to the save handler on the next pass.
+  client.__render = (component, props) => {
+    hooks.cursor = 0
+    return component(props)
+  }
+  return client
+}
+
+/** A settings scope over one mutable value, with the shipped contract. */
+function fakeScope(initial, { writable = true } = {}) {
+  let value = { ...initial }
+  let user = { ...initial }
+  let revision = 0
+  const listeners = new Set()
+  return {
+    getSnapshot: () => ({ status: 'ready', value, base: {}, user, writable, revision }),
+    subscribe: listener => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    mutate: async (ops, expected) => {
+      if (expected !== revision) {
+        const error = new Error('stale revision')
+        error.code = 'SETTINGS_CONFLICT'
+        throw error
+      }
+      for (const op of ops) {
+        if (op.op === 'set') {
+          value = { ...value, [op.path[0]]: op.value }
+          user = { ...user, [op.path[0]]: op.value }
+        } else {
+          delete user[op.path[0]]
+          value = { ...value }
+          delete value[op.path[0]]
+        }
+      }
+      revision += 1
+      for (const listener of Array.from(listeners)) listener()
+      return true
+    },
+    read: () => ({ value: { ...value }, user: { ...user }, revision }),
+  }
+}
+
+/**
+ * A client context that records what the half registers.
+ *
+ * `configForms.whileServed` runs its callback at once, which is what a settled
+ * Host does; a half that only registered inside the gate still registers here.
+ */
+function clientContext(scope) {
+  const slots = []
+  const effects = []
+  const dictionaries = []
+  const requires = []
+  const ctx = {
+    slots: {
+      inject: (name, callback) => {
+        requires.push(name)
+        return callback()
+      },
+      register: (options, component) => {
+        slots.push({ options, component })
+        return () => {}
+      },
+    },
+    configForms: {
+      get: ns => (ns === 'dsh-readme' ? scope : undefined),
+      whileServed: (namespaces, callback) => {
+        assert.deepEqual(namespaces, ['dsh-readme'], 'the gate names the config row id')
+        return callback()
+      },
+    },
+    locale: {
+      register: (ns, table) => {
+        dictionaries.push({ ns, table })
+        return () => {}
+      },
+      bind: () => key => key,
+    },
+    effect: (body, label) => {
+      effects.push({ off: body(), label })
+      return () => {}
+    },
+    inject: (names, callback) => {
+      callback({ configForms: ctx.configForms, effect: ctx.effect })
+      return () => {}
+    },
+  }
+  return { ctx, slots, effects, dictionaries, requires }
+}
+
+test('the browser half registers the page on both bundle and row seats', () => {
+  const client = loadClientHalf()
+  assert.equal(client.name, 'dsh-readme')
+  assert.deepEqual(client.inject, ['slots', 'locale'])
+  const scope = fakeScope({ enabled: true, path: 'D:/workspace/AgentsReadMe.md', reloadOnChange: true })
+  const { ctx, slots, dictionaries, requires } = clientContext(scope)
+  client.apply(ctx)
+
+  // `plugins.item` is the official-plugins list; a bundle's own configuration
+  // belongs on its package page and on the page of the row it inserts. Both are
+  // keyed seats, so the same page component serves them.
+  assert.deepEqual(requires, ['plugins.bundle.config', 'plugins.row.config'])
+  assert.equal(slots.length, 2, 'one page per seat, never two on the same seat')
+  const bundle = slots.find(entry => entry.options.name === 'plugins.bundle.config')
+  const row = slots.find(entry => entry.options.name === 'plugins.row.config')
+  assert.ok(bundle !== undefined, 'the package page seat is claimed')
+  assert.ok(row !== undefined, 'the inserted row seat is claimed')
+  assert.equal(bundle.options.key, 'dsh-readme', 'the bundle seat is keyed by the package name')
+  assert.equal(row.options.key, 'dsh-readme#dsh-readme', 'the row seat is keyed <package>#<row id>')
+  assert.equal(typeof bundle.component, 'function')
+  assert.ok(dictionaries.some(entry => entry.ns === 'settings.dshReadme' && entry.table.zh && entry.table.en))
+})
+
+test('the summary view is one line and the page view carries the path', () => {
+  const client = loadClientHalf()
+  const scope = fakeScope({ enabled: true, path: '/tmp/constraints.md', reloadOnChange: true })
+  const { ctx, slots } = clientContext(scope)
+  client.apply(ctx)
+  const { component } = slots[0]
+  const t = key => key
+  assert.equal(component({ view: 'summary', t }), 'summary', 'the row lists a one-liner, not a form')
+  // The page element tree is opaque without a real renderer, so the check is
+  // that it is built at all and refers to the current value.
+  const tree = component({ view: 'page', t, scope })
+  assert.ok(tree !== null && typeof tree === 'object', 'the page view renders an element')
+  assert.equal(tree.props['data-plugin-config'], 'dsh-readme')
+})
+
+test('the owner-supplied form wins over a scope handed alongside it', () => {
+  const client = loadClientHalf()
+  const scope = fakeScope({ enabled: true, path: '/tmp/from-scope.md', reloadOnChange: true })
+  const { ctx, slots } = clientContext(scope)
+  client.apply(ctx)
+  const { component } = slots[0]
+  // A page in the Plugins tab receives the entry it is showing as `form`; that
+  // state is authoritative because it is what the page was opened for.
+  const form = {
+    state: { status: 'ready', mode: 'host', writable: true, value: { path: '/tmp/from-form.md' }, user: {}, revision: 3 },
+    mutate: async () => true,
+  }
+  const tree = flatten(component({ view: 'page', t: key => key, form, scope }))
+  const input = tree.find(element => element.type === 'input' && element.props.id === 'dsh-readme-path')
+  assert.equal(input.props.value, '/tmp/from-form.md', 'the form prop is read, not the scope')
+})
+
+test('a form whose mode is not a host write disables the field', () => {
+  const client = loadClientHalf()
+  const scope = fakeScope({ enabled: true, path: '/tmp/x.md', reloadOnChange: true })
+  const { ctx, slots } = clientContext(scope)
+  client.apply(ctx)
+  const { component } = slots[0]
+  const form = {
+    state: { status: 'ready', mode: 'preview', writable: true, value: { path: '/tmp/x.md' }, user: {}, revision: 0 },
+    mutate: async () => true,
+  }
+  const tree = flatten(component({ view: 'page', t: key => key, form }))
+  const input = tree.find(element => element.type === 'input' && element.props.id === 'dsh-readme-path')
+  assert.equal(input.props.disabled, true, 'a non-host mode is display only')
+})
+
+test('a missing scope degrades to a note instead of throwing', () => {
+  const client = loadClientHalf()
+  const { ctx, slots } = clientContext(undefined)
+  client.apply(ctx)
+  const { component } = slots[0]
+  const tree = component({ view: 'page', t: key => key, scope: undefined })
+  assert.equal(tree.props.children, 'unavailable')
+})
+
+/** Every element in a rendered tree, depth first. */
+function flatten(node, out = []) {
+  if (node === null || typeof node !== 'object') return out
+  if (Array.isArray(node)) {
+    for (const child of node) flatten(child, out)
+    return out
+  }
+  out.push(node)
+  if (node.props !== undefined) flatten(node.props.children, out)
+  return out
+}
+
+await testAsync('saving the path writes through the scope and reports success', async () => {
+  const client = loadClientHalf()
+  const scope = fakeScope({ enabled: true, path: '/tmp/old.md', reloadOnChange: true })
+  const { ctx, slots } = clientContext(scope)
+  client.apply(ctx)
+  const { component } = slots[0]
+  const props = { view: 'page', t: key => key, scope }
+
+  const first = flatten(client.__render(component, props))
+  const input = first.find(element => element.type === 'input' && element.props.id === 'dsh-readme-path')
+  assert.ok(input !== undefined, 'the page renders the path input')
+  assert.equal(input.props.value, '/tmp/old.md', 'the input starts at the effective value')
+
+  // Type a new path, then re-render — React would do that after a keystroke,
+  // and it is what makes the draft visible to the save handler.
+  input.props.onChange({ target: { value: '  /tmp/new.md  ' } })
+  const second = flatten(client.__render(component, props))
+  const typed = second.find(element => element.type === 'input' && element.props.id === 'dsh-readme-path')
+  assert.equal(typed.props.value, '  /tmp/new.md  ', 'the draft replaces the stored value while it is being edited')
+
+  const save = second.find(element => element.type === 'button' && element.props.children === 'save')
+  assert.ok(save !== undefined, 'the page renders a save button')
+  await save.props.onClick()
+
+  const after = scope.read()
+  assert.equal(after.value.path, '/tmp/new.md', 'the trimmed path was written')
+  assert.equal(after.revision, 1, 'exactly one write reached the Host')
+})
+
+await testAsync('a refused write leaves the stored value alone', async () => {
+  const client = loadClientHalf()
+  // `writable: false` is how the settings service reports a value beneath a
+  // higher-priority layer: it must not be written, and the page says so.
+  const scope = fakeScope({ enabled: true, path: '/tmp/old.md', reloadOnChange: true }, { writable: false })
+  const { ctx, slots } = clientContext(scope)
+  client.apply(ctx)
+  const { component } = slots[0]
+  const elements = flatten(component({ view: 'page', t: key => key, scope }))
+  const input = elements.find(element => element.type === 'input' && element.props.id === 'dsh-readme-path')
+  assert.equal(input.props.disabled, true, 'an unwritable scope disables the field')
+  assert.equal(scope.read().revision, 0, 'nothing was written')
 })
 
 cleanup()

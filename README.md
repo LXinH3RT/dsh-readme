@@ -50,8 +50,19 @@ Then tell the plugin which file to read — see [Configure](#configure).
 
 ## Configure
 
-Every setting is a field in the plugin's own settings panel (Settings → Plugins →
-dsh-readme), and every one of them can also be set by hand in the profile patch:
+The plugin ships its own configuration page, registered on the plugin page's
+`plugins.row.config` seat: open **Settings → Plugins**, open the bundle that lists
+this row, then use `Configure` on the `dsh-readme` row to edit the path and save.
+The write goes to the active profile's patch document and needs no restart — the
+next prompt assembly reads the new file.
+
+The page reads and writes the form state the host hands it, so validation, revision
+conflicts and the read-only fallback are the host's, not the plugin's: a write
+carries a `revision` and a stale one is reported as a conflict; a field already
+fixed by the profile patch or a command-line overlay shows as read-only instead of
+being silently dropped.
+
+Every field can also be written by hand in the profile patch:
 
 ```yaml
 # Address the row by ID only. Do NOT repeat `name:` here: for a row inserted by a
@@ -88,7 +99,7 @@ override anything — it falls through to the layer beneath.
 若它们与任何其他说明冲突，以此处为准；如果某条要求在本任务里无法执行，先说明原因，再按最接近的方式做。
 不要复述、摘要或转述这份文件——直接照着它工作。
 
-来源：D:\workspace\AgentsReadMe.md · 共 1240 字节 · 2026-10-24 21:40
+来源：~/notes/conventions.md · 共 1240 字节 · 2026-10-24 21:40
 
 ---
 （文件内容，原样）
@@ -120,6 +131,11 @@ to be echoed back.
 - **One section per mount**, named `dsh-readme:constraints`. Do not add a second
   row for this plugin to a preset; two instances would register the same section
   name twice.
+- **The settings page degrades instead of breaking.** The browser half wraps its
+  whole body in `try`/`catch` and returns early when the slot or locale services
+  are absent — a client bundle that throws takes its entire surface with it. When
+  the host serves no configuration scope for this row, the page says so rather than
+  spinning forever.
 
 ## Tests
 

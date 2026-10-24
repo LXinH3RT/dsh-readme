@@ -1,11 +1,12 @@
 {
   "name": "dsh-readme",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Read a user-designated text file before every agent's first step and inject its contents into the system prompt as binding working constraints.",
   "type": "module",
   "main": "index.js",
   "exports": {
     ".": "./index.js",
+    "./client": "./lib/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
@@ -52,6 +53,14 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   }
 }
