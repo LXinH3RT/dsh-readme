@@ -4,6 +4,12 @@ This plugin is versioned with [Semantic Versioning](https://semver.org). The
 package format itself is young, so the minor number moves when the DSH plugin
 contract this plugin depends on changes.
 
+## Unreleased
+
+- The Chinese README is now `README.zh.md` instead of `README.zh-CN.md`, matching
+  the `<name>.<locale>.md` shape repositories use for translated editions. The
+  two editions link to each other at the top of the file.
+
 ## 0.2.0 — 2026-10-24
 
 - The browser half: the plugin now brings its own configuration page, so the path

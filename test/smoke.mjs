@@ -447,6 +447,22 @@ test('package.json declares the browser half the settings page needs', () => {
   assert.ok(manifest.files.includes('lib'), 'lib/ ships, so lib/client.js is in the tarball')
 })
 
+test('the two READMEs are named for their locale and link to each other', () => {
+  // GitHub has no built-in README language switcher: a repository shows exactly
+  // one `README.md`, and translated editions are separate files picked from the
+  // file list. `README.<locale>.md` is the shape readers recognise, and the
+  // switch itself is the line at the top of each file.
+  const root = new URL('..', import.meta.url)
+  const english = readFileSync(new URL('README.md', root), 'utf8')
+  const chinese = readFileSync(new URL('README.zh.md', root), 'utf8')
+  assert.match(english, /\]\(README\.zh\.md\)/, 'the English README links to the Chinese one')
+  assert.match(chinese, /\]\(README\.md\)/, 'the Chinese README links back')
+  assert.ok(!english.includes('README.zh-CN.md'), 'the old zh-CN name is gone')
+  const manifest = JSON.parse(readFileSync(new URL('package.json', root), 'utf8'))
+  assert.ok(manifest.files.includes('README.md'))
+  assert.ok(manifest.files.includes('README.zh.md'))
+})
+
 // --- browser half ------------------------------------------------------------
 
 /**

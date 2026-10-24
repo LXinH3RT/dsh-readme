@@ -1,5 +1,7 @@
 # dsh-readme
 
+**English** · [简体中文](README.zh.md)
+
 Read one text file — a team conventions file, a project's `AgentsReadMe.md`, a
 style guide — and inject its contents into the system prompt of **every** agent
 before that agent's first model request. The file's rules then apply for the whole
