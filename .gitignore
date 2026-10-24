@@ -11,3 +11,6 @@ Thumbs.db
 
 # Local probe scripts and scratch output
 .probe/
+
+# Project handover notes (local only)
+AgentsReadMe.md
