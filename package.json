@@ -1,6 +1,6 @@
 {
   "name": "dsh-readme",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Read a user-designated text file before every agent's first step and inject its contents into the system prompt as binding working constraints.",
   "type": "module",
   "main": "index.js",

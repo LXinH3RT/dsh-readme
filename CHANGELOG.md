@@ -4,7 +4,11 @@ This plugin is versioned with [Semantic Versioning](https://semver.org). The
 package format itself is young, so the minor number moves when the DSH plugin
 contract this plugin depends on changes.
 
-## Unreleased
+## 0.2.1 — 2026-11-06
+
+Verified against DSH 0.2.2-rc.1: no breaking change reached this plugin. The
+bundle row, the `Config` projection, the prompt-section contract, the client
+bundle and the settings seats all still match what 0.2.0 was written against.
 
 - `scripts/profile-check.mjs` (`pnpm doctor` / `node scripts/profile-check.mjs
   <profile>`) diagnoses the profile's dependency, bundle row, installed copy,
@@ -13,7 +17,8 @@ contract this plugin depends on changes.
   rebuilds `dsh.profile.bundles` on every install and keeps an existing entry
   only while the installed package still declares `dsh.bundle.patch`, so a
   package directory that is momentarily missing drops the plugin from every
-  profile without a message.
+  profile without a message. Both READMEs now document the symptom and the
+  recovery.
 - `package.json` now also declares `engines.node` (`^22.19 || >=24`), matching
   the rest of the ecosystem. `engines.dsh` was the only compatibility field
   before; the plugin manager reads that one and ignores peer ranges when it is
