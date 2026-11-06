@@ -50,6 +50,33 @@ form above is what a local checkout uses):
 
 Then tell the plugin which file to read — see [Configure](#configure).
 
+## If the plugin stops loading
+
+A profile selects its plugins by name in `dsh.profile.bundles`. The plugin manager
+rebuilds that list whenever it installs or removes **any** package, and it keeps an
+existing entry only while `node_modules/<name>/package.json` still declares
+`dsh.bundle.patch`. A package directory that is momentarily absent — an interrupted
+install, a reinstall, a manual cleanup — therefore drops out of the list silently,
+and it does not come back on its own. The plugin stays in `dependencies`, its
+settings stay in the profile patch, and nothing loads it.
+
+Two ways to see it. In the app, the constraint section is simply absent from the
+prompt. From a shell:
+
+```bash
+node scripts/profile-check.mjs desktop
+```
+
+The script reads the profile (not a checkout of this repository), reports the
+dependency, the bundle row, the installed copy, the patch and the configured file,
+and exits non-zero when one of them is wrong. If the row is the missing piece, add
+the name back to `dsh.profile.bundles` in the profile's `package.json` and restart.
+The same condition shows up at startup as:
+
+```
+dsh: [.../cordis.patch.yml] patch: entry "dsh-readme" not found
+```
+
 ## Configure
 
 The plugin ships its own configuration page, registered on the plugin page's

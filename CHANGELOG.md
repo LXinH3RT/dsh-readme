@@ -6,6 +6,18 @@ contract this plugin depends on changes.
 
 ## Unreleased
 
+- `scripts/profile-check.mjs` (`pnpm doctor` / `node scripts/profile-check.mjs
+  <profile>`) diagnoses the profile's dependency, bundle row, installed copy,
+  patch file and configured path, and exits non-zero on the first thing that is
+  wrong. It exists because the failure it detects is silent: the plugin manager
+  rebuilds `dsh.profile.bundles` on every install and keeps an existing entry
+  only while the installed package still declares `dsh.bundle.patch`, so a
+  package directory that is momentarily missing drops the plugin from every
+  profile without a message.
+- `package.json` now also declares `engines.node` (`^22.19 || >=24`), matching
+  the rest of the ecosystem. `engines.dsh` was the only compatibility field
+  before; the plugin manager reads that one and ignores peer ranges when it is
+  present.
 - The Chinese README is now `README.zh.md` instead of `README.zh-CN.md`, matching
   the `<name>.<locale>.md` shape repositories use for translated editions. The
   two editions link to each other at the top of the file.

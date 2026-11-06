@@ -463,6 +463,26 @@ test('the two READMEs are named for their locale and link to each other', () => 
   assert.ok(manifest.files.includes('README.zh.md'))
 })
 
+test('the manifest keeps the fields the plugin manager reads', () => {
+  // The plugin manager rebuilds `dsh.profile.bundles` on every install it runs,
+  // keeping an entry only while `node_modules/<name>/package.json` declares
+  // `dsh.bundle.patch`. A manifest that loses either field makes the plugin
+  // vanish from every profile on that profile's next install, so both are
+  // asserted here rather than left to a manual check.
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(typeof manifest.dsh?.bundle?.patch, 'string', 'dsh.bundle.patch is what keeps the bundle selected')
+  assert.ok(manifest.files.includes('cordis.patch.yml'), 'the patch it names must ship')
+  // `engines.dsh` is the only compatibility field the manager consults: when it
+  // is present, peer ranges are not looked at.
+  assert.equal(typeof manifest.engines?.dsh, 'string')
+  // Node, not DSH: the plugin's own runtime floor.
+  assert.equal(typeof manifest.engines?.node, 'string')
+  // The diagnostic ships with the package, so it can be run against the copy
+  // that is actually installed rather than against a checkout.
+  assert.ok(manifest.files.includes('scripts'), 'scripts/ ships, so the profile check is available after install')
+  assert.equal(manifest.scripts?.doctor, 'node scripts/profile-check.mjs')
+})
+
 // --- browser half ------------------------------------------------------------
 
 /**

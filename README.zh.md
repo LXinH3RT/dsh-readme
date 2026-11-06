@@ -44,6 +44,22 @@ dsh plugin add /path/to/dsh-readme
 
 然后告诉插件读哪个文件——见[配置](#配置)。
 
+## 插件“不生效”时先查这里
+
+profile 用 `dsh.profile.bundles` 里的名字来选中插件。插件管理器在安装或卸载**任意**包时都会重建这个列表，而它保留某个既有条目的条件只有一条：`node_modules/<名字>/package.json` 里仍然声明了 `dsh.bundle.patch`。因此，一次被中断的安装、一次重装、或一次手工清理只要让包目录短暂消失，这一行就会被**静默**剔除，而且不会自己回来。此时插件仍在 `dependencies` 里，配置也还在 profile 的 patch 里，只是没有任何东西去加载它。
+
+两种发现方式：在应用里表现为系统提示词中缺少约束小节；在命令行里跑：
+
+```bash
+node scripts/profile-check.mjs desktop
+```
+
+该脚本读取的是 profile（不是本仓库的检出目录），依次检查依赖、打包行、安装副本、patch 与目标文件，任一项不对就以非零状态退出。如果缺的是打包行，把名字加回 profile `package.json` 的 `dsh.profile.bundles` 并重启即可。同一问题在启动日志里表现为：
+
+```
+dsh: [.../cordis.patch.yml] patch: entry "dsh-readme" not found
+```
+
 ## 配置
 
 插件自带一个配置页，挂在插件页的 `plugins.row.config` 槽上：打开**设置 → 插件**，在本插件所在组合的页面上，点 `dsh-readme` 这一行右侧的“配置”，即可直接改路径并保存。改动写入当前 profile 的 patch 文档，无需重启，下一次提示词组装就用新文件。
